@@ -9,10 +9,10 @@ import diode.react.ReactConnector
   */
 object AppCircuit extends Circuit[AppModel] with ReactConnector[AppModel] {
   // define initial value for the application model
-  var model = AppModel(Todos(Seq()))
+  def initialModel = AppModel(Todos(Seq()))
 
-  override val actionHandler = combineHandlers(
-    new TodoHandler(zoomRW(_.todos)((m, v) => m.copy(todos = v)).zoomRW(_.todoList)((m, v) => m.copy(todoList = v)))
+  override val actionHandler = composeHandlers(
+    new TodoHandler(zoomTo(_.todos.todoList))
   )
 }
 
@@ -20,12 +20,13 @@ class TodoHandler[M](modelRW: ModelRW[M, Seq[Todo]]) extends ActionHandler(model
 
   def updateOne(Id: TodoId)(f: Todo => Todo): Seq[Todo] =
     value.map {
-      case found@Todo(Id, _, _) => f(found)
-      case other => other
+      case found @ Todo(Id, _, _) => f(found)
+      case other                  => other
     }
 
   override def handle = {
     case InitTodos =>
+      println("Initializing todos")
       updated(List(Todo(TodoId.random, "Test your code!", false)))
     case AddTodo(title) =>
       updated(value :+ Todo(TodoId.random, title, false))

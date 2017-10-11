@@ -1,4 +1,4 @@
-# [![Diode](images/diode-logo-big.png)](https://github.com/ochrons/diode)
+# [![Diode](images/diode-logo-big.png)](https://github.com/suzaku-io/diode)
 
 # Introduction
 
@@ -10,16 +10,16 @@ tenets:
 3. State is always replaced with the next state
 
 If you are interested in the motivation, or prior art for Diode, we recommend reading through 
-[Redux introduction](http://rackt.org/redux/docs/introduction/index.html) and [Flux architecture](https://facebook.github.io/flux/docs/overview.html#content).
+[Redux introduction](http://redux.js.org/docs/introduction/) and [Flux architecture](https://facebook.github.io/flux/docs/overview.html#content).
 Both give a great overview on the benefits of unidirectional data flow and immutable state.
 
 To use Diode in your application add following dependency declaration to your Scala project.
 
-<pre><code class="lang-scala">"me.chrons" %% "diode" % "{{ book.version }}"</code></pre>
+<pre><code class="lang-scala">"io.suzaku" %% "diode" % "{{ book.version }}"</code></pre>
 
 In a Scala.js project the dependency looks like this.
 
-<pre><code class="lang-scala">"me.chrons" %%% "diode" % "{{ book.version }}"</code></pre>
+<pre><code class="lang-scala">"io.suzaku" %%% "diode" % "{{ book.version }}"</code></pre>
 
 ## Diode Architecture
 

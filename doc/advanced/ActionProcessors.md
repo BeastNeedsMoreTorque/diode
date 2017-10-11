@@ -13,9 +13,9 @@ To define an action processor, create a class extending the `ActionProcessor[M]`
 ```scala
 class LoggingProcessor[M] extends ActionProcessor[M] {
   var log = Vector.empty[(Long, String)]
-  def process(dispatch: Dispatcher, action: AnyRef, next: (AnyRef) => ActionResult[M]): ActionResult[M] = {
+  def process(dispatch: Dispatcher, action: Any, next: Any => ActionResult[M]): ActionResult[M] = {
     // log the action
-    log = log :+ (new java.util.Date().getTime, action.toString)
+    log = log :+ (System.currentTimeMillis(), action.toString)
     // call the next processor
     next(action)
   }
@@ -54,7 +54,7 @@ already done, a RAF callback is requested. When the callback is executed, all ba
 should handle this action and update the model with the current timestamp.
 
 ```scala
-val timestampHandler = new ActionHandler(zoomRW(_.now)((m, v) => m.copy(now = v))) {
+val timestampHandler = new ActionHandler(zoomTo(_.now)) {
   override def handle = {
     case RAFTimeStamp(time) =>
       updated(time)
@@ -68,14 +68,14 @@ make sense to use a batching strategy even when no animations are involved.
 
 ### Persisting Application State
 
-Diode [devtools](https://github.com/ochrons/diode/tree/master/diode-devtools) project contains a convenient action processor for saving and restoring
+Diode [devtools](https://github.com/suzaku-io/diode/tree/master/diode-devtools) project contains a convenient action processor for saving and restoring
 application state. This can be useful when encountering a bug in development and wanting to replicate the same application state later, after the code has been
 fixed and application reloaded.
 
 The gist of the state persisting action processor is in the `process` function:
 
 ```scala
-override def process(dispatch: Dispatcher, action: AnyRef, next: (AnyRef) => ActionResult[M], currentModel: M) = {
+override def process(dispatch: Dispatcher, action: Any, next: Any => ActionResult[M], currentModel: M) = {
   action match {
     case Save(id) =>
       // pickle and save

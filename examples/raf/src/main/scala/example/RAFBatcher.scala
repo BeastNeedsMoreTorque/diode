@@ -4,14 +4,14 @@ import diode._
 import org.scalajs.dom._
 
 // marker trait to identify actions that should be RAF batched
-trait RAFAction
+trait RAFAction extends Action
 
-private[example] final case class RAFWrapper(action: AnyRef, dispatch: Dispatcher)
+private[example] final case class RAFWrapper(action: Any, dispatch: Dispatcher) extends Action
 
-final case class RAFTimeStamp(time: Double)
+final case class RAFTimeStamp(time: Double) extends Action
 
 class RAFBatcher[M <: AnyRef] extends ActionProcessor[M] {
-  private var batch = List.empty[RAFWrapper]
+  private var batch          = List.empty[RAFWrapper]
   private var frameRequested = false
 
   /**
@@ -25,11 +25,12 @@ class RAFBatcher[M <: AnyRef] extends ActionProcessor[M] {
       val curBatch = batch
       batch = Nil
       // dispatch all actions in the batch, supports multiple different dispatchers
-      curBatch.reverse.groupBy(_.dispatch).foreach { case (dispatch, actions) =>
-        // Precede actions with a time stamp action to get correct time in animations.
-        // When dispatching a sequence, Circuit optimizes processing internally and only calls
-        // listeners after all the actions are processed
-        dispatch(RAFTimeStamp(time) :: actions)
+      curBatch.reverse.groupBy(_.dispatch).foreach {
+        case (dispatch, actions) =>
+          // Precede actions with a time stamp action to get correct time in animations.
+          // When dispatching a sequence, Circuit optimizes processing internally and only calls
+          // listeners after all the actions are processed
+          dispatch(RAFTimeStamp(time) +: ActionBatch(actions: _*))
       }
       // request next frame
       requestAnimationFrame
@@ -48,7 +49,7 @@ class RAFBatcher[M <: AnyRef] extends ActionProcessor[M] {
     }
   }
 
-  override def process(dispatch: Dispatcher, action: AnyRef, next: (AnyRef) => ActionResult[M], currentModel: M) = {
+  override def process(dispatch: Dispatcher, action: Any, next: Any => ActionResult[M], currentModel: M) = {
     action match {
       case rafAction: RAFAction =>
         // save action into the batch using a wrapper

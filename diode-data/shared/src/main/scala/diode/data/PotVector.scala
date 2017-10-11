@@ -2,12 +2,14 @@ package diode.data
 
 import java.util
 
+import diode.Implicits.runAfterImpl
+
 import scala.annotation.tailrec
 
 class PotVector[V](
-  private val fetcher: Fetch[Int],
-  private val length: Int,
-  private val elems: Array[Option[Pot[V]]]
+    private val fetcher: Fetch[Int],
+    private val length: Int,
+    private val elems: Array[Option[Pot[V]]]
 ) extends PotCollection[Int, V] {
 
   private def enlarge(newSize: Int) = {
@@ -15,7 +17,7 @@ class PotVector[V](
     // copy old data
     Array.copy(elems, 0, newArray, 0, elems.length)
     // clear newly allocated space
-    for(i <- elems.length until newSize)
+    for (i <- elems.length until newSize)
       newArray(i) = None
     newArray
   }
@@ -34,8 +36,9 @@ class PotVector[V](
   }
 
   override def updated(kvs: Traversable[(Int, Pot[V])]) = {
-    val (minIdx, maxIdx) = kvs.foldLeft((Int.MaxValue, Int.MinValue)) { case ((min, max), (idx, _)) =>
-      (math.min(min, idx), math.max(max, idx))
+    val (minIdx, maxIdx) = kvs.foldLeft((Int.MaxValue, Int.MinValue)) {
+      case ((min, max), (idx, _)) =>
+        (math.min(min, idx), math.max(max, idx))
     }
     if (minIdx < 0 || maxIdx >= length)
       throw new IndexOutOfBoundsException
@@ -86,14 +89,14 @@ class PotVector[V](
 
   override def iterator: Iterator[(Int, Pot[V])] = new Iterator[(Int, Pot[V])] {
     @tailrec private def findNext(idx: Int): Option[Int] = {
-      if(idx >= elems.length)
+      if (idx >= elems.length)
         None
-      else if(elems(idx).isEmpty)
+      else if (elems(idx).isEmpty)
         findNext(idx + 1)
       else
         Some(idx)
     }
-    private var current = findNext(0)
+    private var current           = findNext(0)
     override def hasNext: Boolean = current.nonEmpty
     override def next(): (Int, Pot[V]) = {
       val idx = current.get
@@ -110,13 +113,15 @@ class PotVector[V](
   override def refresh(idx: Int): Unit = {
     if (idx < 0 || idx >= length)
       throw new IndexOutOfBoundsException
-    fetcher.fetch(idx)
+    // perform fetch asynchronously
+    runAfterImpl.runAfter(0)(fetcher.fetch(idx))
   }
 
   override def refresh(indices: Traversable[Int]): Unit = {
     if (indices.exists(idx => idx < 0 || idx >= length))
       throw new IndexOutOfBoundsException
-    fetcher.fetch(indices)
+    // perform fetch asynchronously
+    runAfterImpl.runAfter(0)(fetcher.fetch(indices))
   }
 
   override def clear =
@@ -126,7 +131,7 @@ class PotVector[V](
     if (idx < 0 || idx >= length)
       throw new IndexOutOfBoundsException
     if (idx >= elems.length || elems(idx).isEmpty) {
-      fetcher.fetch(idx)
+      refresh(idx)
       Pending().asInstanceOf[Pot[V]]
     } else {
       elems(idx).get
@@ -162,9 +167,9 @@ class PotVector[V](
     }
     // are all missing?
     if (missing.size == end - start)
-      fetcher.fetch(start, end)
+      runAfterImpl.runAfter(0)(fetcher.fetch(start, end))
     else if (missing.nonEmpty)
-      fetcher.fetch(missing)
+      refresh(missing)
 
     values
   }

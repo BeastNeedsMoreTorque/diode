@@ -4,10 +4,10 @@ After you start using `Pot` (for medicinal purposes!) in your application, you w
 loading process.
 
 ```scala
-case class LoadTodos
-case class UpdateTodos
-case class LoadTodosFailed
-case class LoadTodosPending
+case class LoadTodos extends Action
+case class UpdateTodos extends Action
+case class LoadTodosFailed extends Action
+case class LoadTodosPending extends Action
 ```
 
 Because this is such a common pattern, wouldn't it be nice to abstract this functionality into a trait and reuse it for all your `Pot` actions?
@@ -15,10 +15,11 @@ Because this is such a common pattern, wouldn't it be nice to abstract this func
 ## `PotAction`
 
 The `PotAction` trait simplifies creation of stateful actions for `Pot` data. To use it, simply define a case class extending `PotAction` and define the `next`
-function to build a new instance of your action.
+function to build a new instance of your action. The `PotAction` trait extends Diode's `Action` trait, so all your classes using it will automatically be
+valid for dispatching.
 
 ```scala
-case class UpdateTodos(result: Pot[Todos] = Empty) extends PotAction[Todos, UpdateTodos] {
+case class UpdateTodos(potResult: Pot[Todos] = Empty) extends PotAction[Todos, UpdateTodos] {
   def next(newResult: Pot[Todos]) = UpdateTodos(newResult)
 }
 ```
@@ -35,10 +36,11 @@ override def handle = {
       case PotPending =>
         noChange
       case PotReady =>
-        updated(action.value)
+        updated(action.potResult)
       case PotUnavailable =>
         updated(value.unavailable())
       case PotFailed =>
+        val ex = action.result.failed.get
         updated(value.fail(ex))
     }
 }
@@ -132,7 +134,7 @@ a retry policy. The retry policy resides in the action and it's updated on every
 
 ```scala
 case class UpdateTodos(result: Pot[Todos] = Empty, retryPolicy: RetryPolicy = Retry.None) 
-  extends PotAction[Todos, UpdateTodos] {
+  extends PotActionRetriable[Todos, UpdateTodos] {
   def next(newResult: Pot[Todos], newRetryPolicy: RetryPolicy) = UpdateTodos(newResult, newRetryPolicy)
 }
 ```
@@ -140,6 +142,9 @@ case class UpdateTodos(result: Pot[Todos] = Empty, retryPolicy: RetryPolicy = Re
 When a failure is encountered, the retry policy is consulted on what to do next:
 
 ```scala
+// create an effect function that takes retry policy
+val updateEffect = action.effectWithRetry(loadTodos())(todos => Todos(todos))
+
 case PotFailed =>
   // extract exception from action and call retryPolicy
   action.retryPolicy.retry(action.result.failed.get, updateEffect) match {

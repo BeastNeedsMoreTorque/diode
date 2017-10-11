@@ -6,11 +6,11 @@ import diode._
 case class RootModel(counter: Int)
 
 // Define actions
-case class Increase(amount: Int)
+case class Increase(amount: Int) extends Action
 
-case class Decrease(amount: Int)
+case class Decrease(amount: Int) extends Action
 
-case object Reset
+case object Reset extends Action
 
 /**
   * AppCircuit provides the actual instance of the `RootModel` and all the action
@@ -18,23 +18,26 @@ case object Reset
   */
 object AppCircuit extends Circuit[RootModel] {
   // define initial value for the application model
-  var model = RootModel(0)
+  def initialModel = RootModel(0)
 
   // zoom into the model, providing access only to the
-  val counterHandler = new ActionHandler(zoomRW(_.counter)((m, v) => m.copy(counter = v))) {
+  val counterHandler = new ActionHandler(zoomTo(_.counter)) {
     override def handle = {
       case Increase(a) => updated(value + a)
       case Decrease(a) => updated(value - a)
-      case Reset => updated(0)
+      case Reset       => updated(0)
     }
   }
-  val actionHandler = combineHandlers(counterHandler)
+
+  override val actionHandler: HandlerFunction = counterHandler
   /*
     // without the ActionHandler class, we would define the handler like this
-    val actionHandler: PartialFunction[AnyRef, ActionResult[RootModel]] = {
-      case Increase(a) => ModelUpdate(model.copy(counter = model.counter + a))
-      case Decrease(a) => ModelUpdate(model.copy(counter = model.counter - a))
-      case Reset => ModelUpdate(model.copy(counter = 0))
-    }
-  */
+    override val actionHandler: HandlerFunction =
+      (model, action) => action match {
+        case Increase(a) => Some(ModelUpdate(model.copy(counter = model.counter + a)))
+        case Decrease(a) => Some(ModelUpdate(model.copy(counter = model.counter - a)))
+        case Reset => Some(ModelUpdate(model.copy(counter = 0)))
+        case _ => None
+      }
+ */
 }

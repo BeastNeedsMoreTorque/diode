@@ -1,15 +1,17 @@
 # Views
 
 <img src="../images/architecture-view.png" style="float: right; padding: 10px">
-In Diode a _view_ is a component that renders data from a model and reacts to model updates. It doesn't necessarily have to be a visual component (although it
-typically is), you could also make one to automatically store changed model data into local storage.
+
+In Diode a _view_ is a component that renders data from a model and reacts to model updates. It doesn't necessarily have
+to be a visual component (although it typically is); you could also make one to automatically store changed model data
+into local storage.
 
 ## Building a View
 
 A simple view needs only a _reader_ to access model data, and a _dispatcher_ to dispatch actions.
 
 ```scala
-class CounterView(counter: ModelR[_, Int], dispatch: Dispatcher) {
+class CounterView(counter: ModelRO[Int], dispatch: Dispatcher) {
   def render = {
     div(
       h3("Counter"),
@@ -22,8 +24,8 @@ class CounterView(counter: ModelR[_, Int], dispatch: Dispatcher) {
 }
 ```
 
-Using a `ModelR` instead of the actual value means we don't have to recreate the view every time the model is updated. We can create the view once in the 
-beginning and use it forever.
+Using a `ModelR` instead of the actual value means we don't have to recreate the view every time the model is updated.
+We can create the view once in the beginning and use it forever.
   
 ```scala
 val counter = new CounterView(AppCircuit.zoom(_.counter), AppCircuit)
@@ -32,7 +34,8 @@ val counter = new CounterView(AppCircuit.zoom(_.counter), AppCircuit)
 For our directory tree we need a more complex view that supports the recursive nature of the data.
 
 ```scala
-class TreeView(root: ModelR[_, FileNode], parent: Seq[String], selection: Seq[String], dispatcher: Dispatcher) {
+class TreeView(root: ModelRO[FileNode], parent: Seq[String], 
+               selection: Seq[String], dispatcher: Dispatcher) {
   val id = root.value.id
   val path = parent :+ id
   val childSeq = build
@@ -46,8 +49,8 @@ class TreeView(root: ModelR[_, FileNode], parent: Seq[String], selection: Seq[St
   ...
 ```
 
-When creating a `TreeView`, it recursively creates a hierarchy of `TreeView` components in the `build` method. Each view gets its own reader and an updated path
-to indicate its relative position in the tree.
+When creating a `TreeView`, it recursively creates a hierarchy of `TreeView` components in the `build` method. Each view
+gets its own reader and an updated path to indicate its relative position in the tree.
 
 ```scala
   ...
@@ -69,44 +72,46 @@ to indicate its relative position in the tree.
 }
 ```
 
-In the render method the name of the node is rendered as a clickable element that dispatches a `Select` action when clicked. Currently selected node is 
-highlighted. If the node is a directory, its children are recursively rendered. 
+In the render method the name of the node is rendered as a clickable element that dispatches a `Select` action when
+clicked. Currently selected node is highlighted. If the node is a directory, its children are recursively rendered.
 
 ## Listening to Changes
 
-Views should update when the model changes. To get notified, subscribe to changes using `Circuit.subscribe(listener)`. The call returns an unsubscribing
-function you can later call to stop receiving notifications.
+Views should update when the model changes. To get notified, subscribe to changes using
+`Circuit.subscribe(cursor)(listener)`. The call returns an unsubscribing function you can later call to stop receiving
+notifications.
 
 ```scala
 val root = dom.document.getElementById("root")
-AppCircuit.subscribe(() => render(root))
-def render(root: dom.Element) = { ... }
+val unsubscribe = AppCircuit.subscribe(AppCircuit.zoom(_.tree))(tree => render(root, tree))
+def render(root: dom.Element, tree: ModelRO[Tree]) = { ... }
 ```
-Listeners are called when _anything_ in the model changes, even if it has no effect in the part of the model your view is interested in. Therefore it makes
-sense to check if a real change has happened, before doing expensive re-computations.
+
+Listeners are called when the model pointed by the cursor changes, even if it would have no effect in the part of the
+model your view is interested in. Therefore it makes sense to check if a real change has happened, before doing
+expensive re-computations.
 
 ```scala
 // rebuild the tree view if the model has changed
-if(AppCircuit.zoom(_.tree.root).value ne currentModel) {
-  currentModel = AppCircuit.zoom(_.tree.root).value
-  treeView = new TreeView(AppCircuit.zoom(_.tree.root), Seq.empty, AppCircuit.zoom(_.tree.selected), AppCircuit)
+val dirRoot: ModelRO[FileNode] = tree.zoom(_.root)
+if (dirRoot =!= currentModel) {
+  currentModel = dirRoot.value
+  treeView = new TreeView(dirRoot, Seq.empty, tree.zoom(_.selected), AppCircuit)
 }
 ```
-If only `selected` is changed, we don't need to rebuild the tree as its structure has stayed the same. We do, however, need to re-render the tree to reflect
-this change.
 
-### Listening to partial Changes
+If only `selected` is changed, we don't need to rebuild the tree as its structure has stayed the same. We do, however,
+need to re-render the tree to reflect this change.
 
-If your view is only interested in a small part of the model, you can register a listener to be called only when that part changes. To indicate what you are
-interested in, supply a _cursor_ function (`(M) => AnyRef`). This cursor function returns a part of the model for reference equality checking. 
-
-```scala
-AppCircuit.subscribe(listener, _.tree.root)
-```
-
-Note that you cannot transform the values with, for example, `Option.map` because they must return the original reference within the model. If you do have an
-`Option` in your path, use `getOrNull` to get the underlying value.
+Quite often you need to listen to changes in a component that doesn't need to know about the application model or its Circuit.
+In these cases you can use currying to pass a function that already contains the cursor to your model. To make this more convenient,
+Diode defines a `Subscriber[A]` type which is an alias for `(ModelRO[A] => Unit) => () => Unit`. For example:
 
 ```scala
-AppCircuit.subscribe(listener, _.optValue.map(_.data).getOrNull)
+class MyComponent(subscriber: Subscriber[Tree]) {
+  val unsubscribe = subscriber(myListener) 
+  def myListener(tree: ModelRO[Tree]) = { ... }
+}
+
+val component = new MyComponent(AppCircuit.subscribe(AppCircuit.zoom(_.tree)))
 ```

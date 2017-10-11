@@ -10,9 +10,9 @@ case class RootModel(animations: Map[Int, Animated], now: Double)
 case class Point(x: Double, y: Double)
 
 case class Animated(started: Double, animation: Animation, isRunning: Boolean = false, pausedAt: Double = 0) {
-  def pause(time: Double) = copy(isRunning = false, pausedAt = time)
+  def pause(time: Double)    = copy(isRunning = false, pausedAt = time)
   def continue(time: Double) = copy(started = time - pausedAt + started, isRunning = true)
-  def updated(time: Double) = copy(animation = animation.update((time - started) / 1000.0))
+  def updated(time: Double)  = copy(animation = animation.update((time - started) / 1000.0))
 }
 
 trait Animation {
@@ -47,19 +47,19 @@ case class Flower(rpm: Double, position: Point = Point(1, 0), override val scale
 }
 
 // Define actions
-case object Reset
+case object Reset extends Action
 
-case class AddAnimation(animation: Animation)
+case class AddAnimation(animation: Animation) extends Action
 
-case class UpdateAnimation(id: Int) extends RAFAction
+case class UpdateAnimation(id: Int) extends RAFAction with Action
 
-case class StartAnimation(id: Int, animation: Animation) extends RAFAction
+case class StartAnimation(id: Int, animation: Animation) extends RAFAction with Action
 
-case class PauseAnimation(id: Int) extends RAFAction
+case class PauseAnimation(id: Int) extends RAFAction with Action
 
-case class ContinueAnimation(id: Int) extends RAFAction
+case class ContinueAnimation(id: Int) extends RAFAction with Action
 
-case class DeleteAnimation(id: Int) extends RAFAction
+case class DeleteAnimation(id: Int) extends RAFAction with Action
 
 /**
   * AppCircuit provides the actual instance of the `RootModel` and all the action
@@ -67,22 +67,22 @@ case class DeleteAnimation(id: Int) extends RAFAction
   */
 object AppCircuit extends Circuit[RootModel] {
   // define initial value for the application model
-  var model = RootModel(Map(), System.currentTimeMillis())
+  def initialModel = RootModel(Map(), System.currentTimeMillis())
 
   // zoom into the model, providing access only to the animations
-  val animationHandler = new AnimationHandler(zoomRW(_.animations)((m, v) => m.copy(animations = v)), zoom(_.now))
+  val animationHandler = new AnimationHandler(zoomTo(_.animations), zoom(_.now))
 
-  val timestampHandler = new ActionHandler(zoomRW(_.now)((m, v) => m.copy(now = v))) {
+  val timestampHandler = new ActionHandler(zoomTo(_.now)) {
     override def handle = {
       case RAFTimeStamp(time) =>
         updated(time)
     }
   }
 
-  val actionHandler = combineHandlers(animationHandler, timestampHandler)
+  val actionHandler = composeHandlers(animationHandler, timestampHandler)
 }
 
-class AnimationHandler[M](modelRW: ModelRW[M, Map[Int, Animated]], now: ModelR[_, Double]) extends ActionHandler(modelRW) {
+class AnimationHandler[M](modelRW: ModelRW[M, Map[Int, Animated]], now: ModelRO[Double]) extends ActionHandler(modelRW) {
   def updateOne(id: Int, f: Animated => Animated) = {
     value.get(id).fold(value)(a => value.updated(id, f(a)))
   }

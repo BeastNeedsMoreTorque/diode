@@ -25,9 +25,9 @@ abstract class PersistState[M <: AnyRef, P] extends ActionProcessor[M] {
   def load(id: String): Future[P]
 
   // internal action dispatched once loading is completed
-  private final case class Loaded(newModel: M)
+  private case class Loaded(newModel: M) extends Action
 
-  override def process(dispatch: Dispatcher, action: AnyRef, next: (AnyRef) => ActionResult[M], currentModel: M) = {
+  override def process(dispatch: Dispatcher, action: Any, next: Any => ActionResult[M], currentModel: M) = {
     action match {
       case Save(id) =>
         // pickle and save
@@ -48,9 +48,10 @@ abstract class PersistState[M <: AnyRef, P] extends ActionProcessor[M] {
 
 object PersistState {
 
+  sealed trait PersistAction extends Action
+
   // define external actions
-  final case class Save(id: String)
+  final case class Save(id: String) extends PersistAction
 
-  final case class Load(id: String)
-
+  final case class Load(id: String) extends PersistAction
 }

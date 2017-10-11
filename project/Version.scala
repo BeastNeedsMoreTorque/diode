@@ -1,3 +1,3 @@
 object Version {
-  val library = "0.4.1-SNAPSHOT"
+  val library = "1.1.2"
 }
